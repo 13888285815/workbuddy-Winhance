@@ -108,6 +108,8 @@ public class LogService : ILogService, IDisposable
                 LogInformation("System info unavailable (provider not configured)");
             }
             LogInformation("=====================================");
+            LogInformation("Privacy Policy: This application does not collect or transmit any personal data.");
+            LogInformation("All operations are performed locally, and logs are stored securely.");
         }
         catch (Exception ex)
         {

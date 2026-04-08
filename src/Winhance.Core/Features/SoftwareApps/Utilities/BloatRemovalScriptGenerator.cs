@@ -18,15 +18,52 @@ public static class BloatRemovalScriptGenerator
         bool includeXboxRegistryFix = false,
         bool includeTeamsProcessKill = false)
     {
+        // Validate input to prevent injection attacks
+        var validatedPackages = ValidateInputList(packages);
+        var validatedCapabilities = ValidateInputList(capabilities);
+        var validatedOptionalFeatures = ValidateInputList(optionalFeatures);
+        var validatedSpecialApps = ValidateInputList(specialApps);
+
         var sb = new StringBuilder();
 
         AppendHeader(sb);
         AppendLoggingSetup(sb);
         AppendRunspaceHelper(sb);
-        AppendArrays(sb, packages, capabilities, optionalFeatures, specialApps);
+        AppendArrays(sb, validatedPackages, validatedCapabilities, validatedOptionalFeatures, validatedSpecialApps);
         sb.Append(GetMainRemovalLogic(includeXboxRegistryFix, includeTeamsProcessKill));
 
         return sb.ToString();
+    }
+
+    private static List<string> ValidateInputList(List<string> inputList)
+    {
+        if (inputList == null) return new List<string>();
+
+        var validatedList = new List<string>();
+        foreach (var item in inputList)
+        {
+            if (!string.IsNullOrWhiteSpace(item))
+            {
+                // Remove any potentially malicious characters
+                var validatedItem = item
+                    .Replace("'", "")
+                    .Replace("\"", "")
+                    .Replace("`", "")
+                    .Replace(";", "")
+                    .Replace("|", "")
+                    .Replace("&", "")
+                    .Replace("$", "")
+                    .Replace("@", "")
+                    .Trim();
+
+                if (!string.IsNullOrWhiteSpace(validatedItem))
+                {
+                    validatedList.Add(validatedItem);
+                }
+            }
+        }
+
+        return validatedList;
     }
 
     public static List<string> ExtractArrayFromScript(string content, string arrayName)
@@ -93,7 +130,7 @@ public static class BloatRemovalScriptGenerator
         sb.AppendLine("# Check if script is running as Administrator");
         sb.AppendLine("If (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]\"Administrator\")) {");
         sb.AppendLine("    Try {");
-        sb.AppendLine("        Start-Process PowerShell.exe -ArgumentList (\"-NoProfile -ExecutionPolicy Bypass -File `\"{0}`\"\" -f $PSCommandPath) -Verb RunAs");
+        sb.AppendLine("        Start-Process PowerShell.exe -ArgumentList (\"-NoProfile -File `\"{0}`\"\" -f $PSCommandPath) -Verb RunAs");
         sb.AppendLine("        Exit");
         sb.AppendLine("    }");
         sb.AppendLine("    Catch {");

@@ -13,6 +13,8 @@ public record ExternalAppMetadata
     public bool IsGitHubRelease { get; init; }
     public string? AssetPattern { get; init; }
     public bool RequiresDirectDownload { get; init; }
+    public string? Hash { get; init; }
+    public string? HashAlgorithm { get; init; }
 
     /// <summary>
     /// Gets the architecture-specific download URL, falling back to the generic URL.

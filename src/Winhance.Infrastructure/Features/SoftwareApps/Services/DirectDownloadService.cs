@@ -115,6 +115,24 @@ public class DirectDownloadService : IDirectDownloadService
                 return false;
             }
 
+            // Verify file integrity if hash is provided
+            if (item.ExternalApp?.Hash != null && item.ExternalApp.HashAlgorithm != null)
+            {
+                _logService?.LogInformation($"Verifying file integrity for {item.Name} using {item.ExternalApp.HashAlgorithm}");
+                if (!await VerifyFileIntegrityAsync(downloadedFile, item.ExternalApp.Hash, item.ExternalApp.HashAlgorithm, cancellationToken).ConfigureAwait(false))
+                {
+                    _logService?.LogError($"File integrity verification failed for {item.Name}");
+                    progress?.Report(new TaskProgressDetail
+                    {
+                        Progress = 0,
+                        StatusText = _localization.GetString("Progress_FailedIntegrityCheck", item.Name),
+                        IsActive = false
+                    });
+                    return false;
+                }
+                _logService?.LogInformation($"File integrity verification passed for {item.Name}");
+            }
+
             _logService?.LogInformation($"Successfully downloaded: {downloadedFile}");
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -597,5 +615,50 @@ public class DirectDownloadService : IDirectDownloadService
             Architecture.Arm64 => "arm64",
             _ => "x64"
         };
+    }
+
+    private async Task<bool> VerifyFileIntegrityAsync(string filePath, string expectedHash, string hashAlgorithm, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, true);
+            System.Security.Cryptography.HashAlgorithm? algorithm = null;
+
+            switch (hashAlgorithm.ToLowerInvariant())
+            {
+                case "md5":
+                    algorithm = System.Security.Cryptography.MD5.Create();
+                    break;
+                case "sha1":
+                    algorithm = System.Security.Cryptography.SHA1.Create();
+                    break;
+                case "sha256":
+                    algorithm = System.Security.Cryptography.SHA256.Create();
+                    break;
+                case "sha512":
+                    algorithm = System.Security.Cryptography.SHA512.Create();
+                    break;
+                default:
+                    _logService?.LogError($"Unsupported hash algorithm: {hashAlgorithm}");
+                    return false;
+            }
+
+            using (algorithm)
+            {
+                var hashBytes = await algorithm.ComputeHashAsync(fileStream, cancellationToken).ConfigureAwait(false);
+                var actualHash = BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+                var expectedHashLower = expectedHash.ToLowerInvariant();
+
+                _logService?.LogInformation($"Computed {hashAlgorithm} hash: {actualHash}");
+                _logService?.LogInformation($"Expected {hashAlgorithm} hash: {expectedHashLower}");
+
+                return actualHash == expectedHashLower;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logService?.LogError($"Error verifying file integrity: {ex.Message}");
+            return false;
+        }
     }
 }
