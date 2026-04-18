@@ -2,12 +2,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Winhance.Core.Features.Common.Constants;
 using Winhance.Core.Features.Common.Interfaces;
+using System;
+using System.IO;
+using System.Reflection;
+using System.Text.Json;
 
 namespace Winhance.UI.Features.Common.ViewModels;
 
-/// <summary>
-/// ViewModel for the More menu flyout, providing localized strings and commands.
-/// </summary>
 public partial class MoreMenuViewModel : ObservableObject, IDisposable
 {
     private bool _disposed;
@@ -17,6 +18,10 @@ public partial class MoreMenuViewModel : ObservableObject, IDisposable
     private readonly IApplicationCloseService _applicationCloseService;
     private readonly IFileSystemService _fileSystemService;
     private readonly IExplorerWindowManager _explorerWindowManager;
+
+    private readonly string _customDocsUrl;
+    private readonly string _customBugReportUrl;
+    private readonly string _customSupportUrl;
 
     [ObservableProperty]
     public partial string VersionInfo { get; set; }
@@ -35,12 +40,57 @@ public partial class MoreMenuViewModel : ObservableObject, IDisposable
         _applicationCloseService = applicationCloseService;
         _fileSystemService = fileSystemService;
         _explorerWindowManager = explorerWindowManager;
+
+        var customUrls = GetCustomUrls();
+        _customDocsUrl = customUrls.docsUrl;
+        _customBugReportUrl = customUrls.bugReportUrl;
+        _customSupportUrl = customUrls.supportUrl;
+
         VersionInfo = "Winhance";
 
-        // Subscribe to language changes
         _localizationService.LanguageChanged += OnLanguageChanged;
 
         InitializeVersionInfo();
+    }
+
+    private static (string docsUrl, string bugReportUrl, string supportUrl) GetCustomUrls()
+    {
+        string defaultDocsUrl = "https://winhance.net/docs/index.html";
+        string defaultBugReportUrl = "https://github.com/memstechtips/Winhance/issues";
+        string defaultSupportUrl = "https://github.com/memstechtips/Winhance/discussions";
+
+        try
+        {
+            string configPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Winhance",
+                "config",
+                "ui_settings.json");
+
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                using var doc = JsonDocument.Parse(json);
+
+                string docsUrl = defaultDocsUrl;
+                string bugReportUrl = defaultBugReportUrl;
+                string supportUrl = defaultSupportUrl;
+
+                if (doc.RootElement.TryGetProperty("docsUrl", out var d))
+                    docsUrl = d.GetString() ?? defaultDocsUrl;
+                if (doc.RootElement.TryGetProperty("bugReportUrl", out var b))
+                    bugReportUrl = b.GetString() ?? defaultBugReportUrl;
+                if (doc.RootElement.TryGetProperty("supportUrl", out var s))
+                    supportUrl = s.GetString() ?? defaultSupportUrl;
+
+                return (docsUrl, bugReportUrl, supportUrl);
+            }
+        }
+        catch
+        {
+        }
+
+        return (defaultDocsUrl, defaultBugReportUrl, defaultSupportUrl);
     }
 
     public void Dispose()
@@ -107,7 +157,7 @@ public partial class MoreMenuViewModel : ObservableObject, IDisposable
         try
         {
             await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://winhance.net/docs/index.html"));
+                new Uri(_customDocsUrl));
         }
         catch (Exception ex)
         {
@@ -121,7 +171,7 @@ public partial class MoreMenuViewModel : ObservableObject, IDisposable
         try
         {
             await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/memstechtips/Winhance/issues"));
+                new Uri(_customBugReportUrl));
         }
         catch (Exception ex)
         {

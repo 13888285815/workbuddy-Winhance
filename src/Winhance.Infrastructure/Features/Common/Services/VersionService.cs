@@ -17,8 +17,9 @@ public class VersionService : IVersionService
     private readonly IProcessExecutor _processExecutor;
     private readonly IFileSystemService _fileSystemService;
     private readonly HttpClient _httpClient;
-    private readonly string _latestReleaseApiUrl = "https://api.github.com/repos/memstechtips/Winhance/releases/latest";
-    private readonly string _latestReleaseDownloadUrl = "https://github.com/memstechtips/Winhance/releases/latest/download/Winhance.Installer.exe";
+    private readonly string _customApiBaseUrl;
+    private readonly string _latestReleaseApiUrl;
+    private readonly string _latestReleaseDownloadUrl;
     private readonly string _userAgent = "Winhance-Update-Checker";
     private string? _downloadedInstallerPath;
 
@@ -28,6 +29,40 @@ public class VersionService : IVersionService
         _processExecutor = processExecutor ?? throw new ArgumentNullException(nameof(processExecutor));
         _fileSystemService = fileSystemService ?? throw new ArgumentNullException(nameof(fileSystemService));
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+
+        _customApiBaseUrl = GetCustomApiBaseUrl();
+        _latestReleaseApiUrl = string.IsNullOrEmpty(_customApiBaseUrl)
+            ? "https://api.github.com/repos/memstechtips/Winhance/releases/latest"
+            : $"{_customApiBaseUrl}/repos/memstechtips/Winhance/releases/latest";
+        _latestReleaseDownloadUrl = string.IsNullOrEmpty(_customApiBaseUrl)
+            ? "https://github.com/memstechtips/Winhance/releases/latest/download/Winhance.Installer.exe"
+            : $"{_customApiBaseUrl}/repos/memstechtips/Winhance/releases/latest/download/Winhance.Installer.exe";
+    }
+
+    private static string GetCustomApiBaseUrl()
+    {
+        try
+        {
+            string configPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Winhance",
+                "config",
+                "api_settings.json");
+
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("apiBaseUrl", out var urlElement))
+                {
+                    return urlElement.GetString() ?? string.Empty;
+                }
+            }
+        }
+        catch
+        {
+        }
+        return string.Empty;
     }
 
     public VersionInfo GetCurrentVersion()

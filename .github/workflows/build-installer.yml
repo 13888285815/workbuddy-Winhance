@@ -1,0 +1,58 @@
+name: Build WindowsUninstall Installer (Full)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-package:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Download Inno Setup
+      run: |
+        $downloadUrl = "https://jrsoftware.org/download.php/is.exe"
+        $installerPath = "$env:TEMP\innosetup.exe"
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $installerPath
+        Start-Process -FilePath $installerPath -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /DIR=C:\InnoSetup" -Wait
+
+    - name: Restore dependencies
+      run: dotnet restore Winhance.sln
+
+    - name: Build Release
+      run: |
+        msbuild src/Winhance.UI/Winhance.UI.csproj /p:Configuration=Release /p:Platform=x64 /restore
+
+    - name: Build Installer with Inno Setup
+      run: |
+        $iscc = "C:\InnoSetup\ISCC.exe"
+        if (-not (Test-Path $iscc)) {
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+        }
+        if (-not (Test-Path $iscc)) {
+          Write-Host "Inno Setup not found, skipping installer creation"
+          exit 0
+        }
+        & $iscc "extras/Winhance.Installer.iss"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: WindowsUninstall-Installer
+        path: |
+          extras/installer-output/*.exe
+          src/Winhance.UI/bin/x64/Release/**
+        retention-days: 90

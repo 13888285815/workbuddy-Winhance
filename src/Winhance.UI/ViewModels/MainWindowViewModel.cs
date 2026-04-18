@@ -5,13 +5,12 @@ using Microsoft.UI.Xaml;
 using Winhance.Core.Features.Common.Interfaces;
 using Winhance.Core.Features.SoftwareApps.Interfaces;
 using Winhance.UI.Features.Common.Interfaces;
+using System;
+using System.IO;
+using System.Text.Json;
 
 namespace Winhance.UI.ViewModels;
 
-/// <summary>
-/// ViewModel for the MainWindow, handling title bar commands and state.
-/// Child ViewModels handle task progress, update checking, and review mode.
-/// </summary>
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private bool _disposed;
@@ -23,6 +22,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly IInteractiveUserService _interactiveUserService;
     private readonly IWinGetStartupService _winGetStartupService;
     private readonly IWindowsVersionFilterService _windowsVersionFilterService;
+
+    private readonly string _customBugReportUrl;
+    private readonly string _customDocsUrl;
 
     /// <summary>Child ViewModel for task progress display.</summary>
     public TaskProgressViewModel TaskProgress { get; }
@@ -76,6 +78,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _winGetStartupService = winGetStartupService;
         _windowsVersionFilterService = windowsVersionFilterService;
 
+        var customUrls = GetCustomUrls();
+        _customBugReportUrl = customUrls.bugReportUrl;
+        _customDocsUrl = customUrls.docsUrl;
+
         TaskProgress = taskProgress;
         UpdateCheck = updateCheck;
         ReviewModeBar = reviewModeBar;
@@ -125,6 +131,42 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _localizationService.LanguageChanged -= OnLanguageChanged;
         ReviewModeBar.PropertyChanged -= OnReviewModeBarPropertyChanged;
         _windowsVersionFilterService.FilterStateChanged -= OnFilterStateChanged;
+    }
+
+    private static (string bugReportUrl, string docsUrl) GetCustomUrls()
+    {
+        string defaultBugReportUrl = "https://github.com/memstechtips/Winhance/issues";
+        string defaultDocsUrl = "https://winhance.net/docs/index.html";
+
+        try
+        {
+            string configPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Winhance",
+                "config",
+                "ui_settings.json");
+
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                using var doc = JsonDocument.Parse(json);
+
+                string bugReportUrl = defaultBugReportUrl;
+                string docsUrl = defaultDocsUrl;
+
+                if (doc.RootElement.TryGetProperty("bugReportUrl", out var b))
+                    bugReportUrl = b.GetString() ?? defaultBugReportUrl;
+                if (doc.RootElement.TryGetProperty("docsUrl", out var d))
+                    docsUrl = d.GetString() ?? defaultDocsUrl;
+
+                return (bugReportUrl, docsUrl);
+            }
+        }
+        catch
+        {
+        }
+
+        return (defaultBugReportUrl, defaultDocsUrl);
     }
 
     /// <summary>
@@ -375,7 +417,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://github.com/memstechtips/Winhance/issues"));
+                new Uri(_customBugReportUrl));
         }
         catch (Exception ex)
         {
@@ -392,7 +434,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await Windows.System.Launcher.LaunchUriAsync(
-                new Uri("https://winhance.net/docs/index.html"));
+                new Uri(_customDocsUrl));
         }
         catch (Exception ex)
         {

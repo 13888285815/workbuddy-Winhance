@@ -1,0 +1,5 @@
+{
+  "apiBaseUrl": "https://api.github.com",
+  "releaseApiPath": "/repos/memstechtips/Winhance/releases/latest",
+  "downloadPath": "/repos/memstechtips/Winhance/releases/latest/download"
+}

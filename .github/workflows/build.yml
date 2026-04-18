@@ -1,0 +1,39 @@
+name: Build WindowsUninstall Installer
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.x'
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore dependencies
+      run: dotnet restore Winhance.sln
+
+    - name: Build solution
+      run: |
+        msbuild Winhance.sln /p:Configuration=Release /p:Platform=x64 /restore
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: WindowsUninstall-Build
+        path: |
+          src/Winhance.UI/bin/x64/Release
+        retention-days: 30
